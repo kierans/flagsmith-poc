@@ -1,11 +1,9 @@
 package com.poc.flagsmith;
 
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.InputStream;
-import java.util.List;
-import java.util.Properties;
 
 /**
  * Entry point for the Flagsmith A/B testing POC.
@@ -14,7 +12,9 @@ import java.util.Properties;
  * ──────────────
  *  Phase 1  Evaluate the carousel_ab_test multivariate flag for all 50 users
  *           using their deviceId as the Flagsmith identity key.
- *           Expected split: ~90% control (no carousel), ~10% test (show carousel).
+ *           Users carry Carousel_Cohort=true, placing them in the
+ *           Carousel_Experiment segment.  The 90/10 split is applied only
+ *           within that segment — users outside it get the default value.
  *
  *  Phase 2  Take the 20 users who have a userId, apply an identity override so
  *           that their userId identity is bucketed into the SAME variant as their
@@ -25,12 +25,13 @@ import java.util.Properties;
  *   OR pass -Dflagsmith.api.key=<key> on the command line.
  */
 public class FlagsmithPoc {
+
     private static final Logger log = LoggerFactory.getLogger(FlagsmithPoc.class);
 
     public static void main(String[] args) throws Exception {
         System.out.println();
         System.out.println("╔══════════════════════════════════════════════════════════════╗");
-        System.out.println("║         FLAGSMITH A/B TESTING POC  —  CAROUSEL FLAG          ║");
+        System.out.println("║         FLAGSMITH A/B TESTING POC  —  CAROUSEL FLAG         ║");
         System.out.println("╚══════════════════════════════════════════════════════════════╝");
         System.out.println();
 
@@ -40,8 +41,8 @@ public class FlagsmithPoc {
         log.info("Starting POC with Flagsmith API key: {}...", apiKey.substring(0, Math.min(8, apiKey.length())));
 
         FlagsmithService service = new FlagsmithService(apiKey);
-        List<User>        users  = UserFactory.createUsers();
-        ResultSummary     summary = new ResultSummary();
+        List<User> users = UserFactory.createUsers();
+        ResultSummary summary = new ResultSummary();
 
         // ====================================================================
         // PHASE 1 — Evaluate all 50 users by deviceId
@@ -54,7 +55,9 @@ public class FlagsmithPoc {
             FlagVariant variant = service.getVariantForDevice(user);
             summary.recordDeviceResult(user, variant);
 
-            System.out.printf("  [%-18s] deviceId=%-38s → %s%n", user.getName(), user.getDeviceId(), variant);
+            String cohortMarker = user.isInCarouselCohort() ? "[cohort]" : "[outside]";
+            System.out.printf("  [%-18s] %-9s deviceId=%-38s → %s%n", user.getName(), cohortMarker, user.getDeviceId(),
+                variant);
         }
 
         // ====================================================================
@@ -65,9 +68,7 @@ public class FlagsmithPoc {
         System.out.println("  Phase 2: Applying userId overrides for 20 identified users");
         System.out.println("─".repeat(60));
 
-        List<User> identifiedUsers = users.stream()
-                .filter(User::isIdentified)
-                .toList();
+        List<User> identifiedUsers = users.stream().filter(User::isIdentified).toList();
 
         System.out.printf("  Found %d identified users.%n%n", identifiedUsers.size());
 

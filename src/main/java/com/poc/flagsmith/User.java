@@ -11,7 +11,8 @@ public class User {
 
     private final String name;
     private final String deviceId;
-    private String userId; // nullable — assigned to 20 of the 50 users
+    private String userId;          // nullable — assigned to 20 of the 50 users
+    private boolean inCarouselCohort; // whether this identity carries Carousel_Cohort=true
 
     public User(String name, String deviceId) {
         this.name = name;
@@ -22,6 +23,13 @@ public class User {
         this.name = name;
         this.deviceId = deviceId;
         this.userId = userId;
+    }
+
+    public User(String name, String deviceId, String userId, boolean inCarouselCohort) {
+        this.name = name;
+        this.deviceId = deviceId;
+        this.userId = userId;
+        this.inCarouselCohort = inCarouselCohort;
     }
 
     public String getName() {
@@ -44,9 +52,18 @@ public class User {
         return userId != null;
     }
 
+    public boolean isInCarouselCohort() {
+        return inCarouselCohort;
+    }
+
+    public void setInCarouselCohort(boolean inCarouselCohort) {
+        this.inCarouselCohort = inCarouselCohort;
+    }
+
     @Override
     public String toString() {
-        return String.format("User{name='%s', deviceId='%s', userId=%s}",
-                name, deviceId, userId != null ? "'" + userId + "'" : "null");
+        return String.format("User{name='%s', deviceId='%s', userId=%s, carouselCohort=%s}",
+            name, deviceId, userId != null ? "'" + userId + "'" : "null",
+            inCarouselCohort);
     }
 }

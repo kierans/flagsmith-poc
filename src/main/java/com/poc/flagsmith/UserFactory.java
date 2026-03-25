@@ -19,16 +19,16 @@ public class UserFactory {
 
     // Deterministic seed names so the POC is reproducible across runs
     private static final String[] FIRST_NAMES = {
-            "Alice", "Bob", "Carol", "David", "Eve",
-            "Frank", "Grace", "Heidi", "Ivan", "Judy",
-            "Karl", "Laura", "Mallory", "Nathan", "Olivia",
-            "Peter", "Quinn", "Rachel", "Steve", "Tina",
-            "Uma", "Victor", "Wendy", "Xavier", "Yvonne",
-            "Zach", "Amber", "Brian", "Chloe", "Derek",
-            "Elena", "Felix", "Gloria", "Henry", "Iris",
-            "James", "Kate", "Liam", "Mia", "Noah",
-            "Olivia", "Paul", "Queenie", "Ryan", "Sophia",
-            "Tom", "Ursula", "Vince", "Willow", "Xander"
+        "Alice", "Bob", "Carol", "David", "Eve",
+        "Frank", "Grace", "Heidi", "Ivan", "Judy",
+        "Karl", "Laura", "Mallory", "Nathan", "Olivia",
+        "Peter", "Quinn", "Rachel", "Steve", "Tina",
+        "Uma", "Victor", "Wendy", "Xavier", "Yvonne",
+        "Zach", "Amber", "Brian", "Chloe", "Derek",
+        "Elena", "Felix", "Gloria", "Henry", "Iris",
+        "James", "Kate", "Liam", "Mia", "Noah",
+        "Olivia", "Paul", "Queenie", "Ryan", "Sophia",
+        "Tom", "Ursula", "Vince", "Willow", "Xander"
     };
 
     /**
@@ -43,6 +43,11 @@ public class UserFactory {
             String deviceId = "device-" + stableUuid(name + "-device");  // deterministic UUID
 
             User user = new User(name, deviceId);
+
+            // Place ALL 50 users in the carousel cohort.
+            // To limit exposure (e.g. only 30 users), change the condition:
+            //   e.g.  if (i < 30) user.setInCarouselCohort(true);
+            user.setInCarouselCohort(true);
 
             // Assign a userId to the first 20 users
             if (i < 20) {

@@ -3,7 +3,6 @@ package com.poc.flagsmith;
 import com.flagsmith.FlagsmithClient;
 import com.flagsmith.exceptions.FlagsmithClientError;
 import com.flagsmith.models.Flags;
-import com.flagsmith.models.Flag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,20 +32,22 @@ public class FlagsmithService {
     // Trait keys stored against an identity in Flagsmith
     // -----------------------------------------------------------------------
     private static final String TRAIT_DEVICE_ID = "device_id";
-    private static final String TRAIT_USER_ID   = "user_id";
-    private static final String TRAIT_NAME      = "name";
+    private static final String TRAIT_USER_ID = "user_id";
+    private static final String TRAIT_NAME = "name";
+    // Segment membership trait — set to true to place an identity in the
+    // Carousel_Experiment segment (which carries the 90/10 multivariate split).
+    // Set to false (or omit) to exclude the identity from the experiment entirely.
+    public static final String TRAIT_CAROUSEL_COHORT = "Carousel_Cohort";
 
     private final FlagsmithClient client;
 
     public FlagsmithService(String environmentApiKey) {
         this.client = FlagsmithClient.newBuilder()
-                .setApiKey(environmentApiKey)
-                .build();
+            .setApiKey(environmentApiKey)
+            .build();
 
-        log.info(
-            "FlagsmithService initialised (env key: {}...)",
-            environmentApiKey.substring(0, Math.min(8, environmentApiKey.length()))
-        );
+        log.info("FlagsmithService initialised (env key: {}...)",
+            environmentApiKey.substring(0, Math.min(8, environmentApiKey.length())));
     }
 
     // -----------------------------------------------------------------------
@@ -60,11 +61,13 @@ public class FlagsmithService {
     public FlagVariant getVariantForDevice(User user) {
         try {
             Map<String, Object> traits = new HashMap<>();
-            traits.put(TRAIT_DEVICE_ID, user.getDeviceId());
-            traits.put(TRAIT_NAME,      user.getName());
+            traits.put(TRAIT_DEVICE_ID,      user.getDeviceId());
+            traits.put(TRAIT_NAME,            user.getName());
+            // Carousel_Cohort controls segment membership in Flagsmith.
+            // Only identities with Carousel_Cohort=true enter the experiment.
+            traits.put(TRAIT_CAROUSEL_COHORT, user.isInCarouselCohort());
 
             Flags flags = client.getIdentityFlags(user.getDeviceId(), traits);
-
             return extractVariant(flags);
         } catch (FlagsmithClientError e) {
             log.error("Error fetching flag for device {}: {}", user.getDeviceId(), e.getMessage());
@@ -86,9 +89,10 @@ public class FlagsmithService {
         }
         try {
             Map<String, Object> traits = new HashMap<>();
-            traits.put(TRAIT_USER_ID,   user.getUserId().get());
-            traits.put(TRAIT_DEVICE_ID, user.getDeviceId());
-            traits.put(TRAIT_NAME,      user.getName());
+            traits.put(TRAIT_USER_ID,        user.getUserId().get());
+            traits.put(TRAIT_DEVICE_ID,       user.getDeviceId());
+            traits.put(TRAIT_NAME,            user.getName());
+            traits.put(TRAIT_CAROUSEL_COHORT, user.isInCarouselCohort());
 
             Flags flags = client.getIdentityFlags(user.getUserId().get(), traits);
             return extractVariant(flags);
@@ -132,15 +136,19 @@ public class FlagsmithService {
         //          if custom rules / segments are configured in Flagsmith.
         try {
             Map<String, Object> traits = new HashMap<>();
-            traits.put(TRAIT_USER_ID,      user.getUserId().get());
-            traits.put(TRAIT_DEVICE_ID,    user.getDeviceId());
-            traits.put(TRAIT_NAME,         user.getName());
-            traits.put("bucket_override",  deviceVariant.getValue()); // used by segment rules
+            traits.put(TRAIT_USER_ID,        user.getUserId().get());
+            traits.put(TRAIT_DEVICE_ID,      user.getDeviceId());
+            traits.put(TRAIT_NAME,           user.getName());
+            // Preserve cohort membership on the userId identity
+            traits.put(TRAIT_CAROUSEL_COHORT, user.isInCarouselCohort());
+            // bucket_override is matched by the higher-priority segment overrides
+            // (override_test_bucket / override_control_bucket) to pin the variant
+            traits.put("bucket_override",   deviceVariant.getValue());
 
             Flags flags = client.getIdentityFlags(user.getUserId().get(), traits);
             FlagVariant userVariant = extractVariant(flags);
             log.info("  [override] User '{}' (userId={}) is now in variant '{}'",
-                    user.getName(), user.getUserId().get(), userVariant);
+                user.getName(), user.getUserId().get(), userVariant);
 
             return userVariant;
         } catch (FlagsmithClientError e) {
@@ -154,6 +162,9 @@ public class FlagsmithService {
     // -----------------------------------------------------------------------
 
     private FlagVariant extractVariant(Flags flags) throws FlagsmithClientError {
+        // Use the documented Flags API:
+        //   isFeatureEnabled(key) — returns true if the flag is on
+        //   getFeatureValue(key)  — returns the string/multivariate value
         boolean enabled = flags.isFeatureEnabled(FLAG_KEY);
 
         if (!enabled) {
@@ -162,7 +173,6 @@ public class FlagsmithService {
 
         Object value = flags.getFeatureValue(FLAG_KEY);
         String strValue = (value != null) ? value.toString() : null;
-
         return FlagVariant.fromValue(strValue);
     }
 

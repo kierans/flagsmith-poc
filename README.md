@@ -3,9 +3,10 @@
 A self-contained Java proof-of-concept demonstrating:
 
 - **Multivariate feature flags** for A/B testing (carousel visible vs. hidden)
-- **90/10 traffic split** — 90% control (no carousel), 10% test (show carousel)
+- **Segment-controlled experiment enrolment** via a `Carousel_Cohort` trait — only identities carrying this trait enter the experiment
+- **90/10 traffic split** applied within the segment — 90% control (no carousel), 10% test (show carousel)
 - **50 simulated users** each with a name and a deterministic `deviceId`
-- **20 identified users** who also have a `userId`, with **identity overrides** to preserve their A/B bucket across both identities
+- **20 identified users** who also have a `userId`, with **identity overrides** that preserve their A/B bucket when transitioning from `deviceId` to `userId` identity
 
 ---
 
@@ -31,53 +32,76 @@ A self-contained Java proof-of-concept demonstrating:
 
 1. Go to **Features → Create Feature**
 2. Set the flag key to exactly: `carousel_ab_test`
-3. Under **Value**, enter: `control` (this is the default / control variant)
+3. Under **Value**, enter: `control` (this is the default value for users outside the experiment)
 4. Enable the flag (toggle it ON)
 5. Click **Create Feature**
 
-### 1.3 Add the Multivariate Options (A/B variants)
-
-1. Click on `carousel_ab_test` to open the flag editor
-2. Click **+ Add Multivariate Option**
-3. Add the following option:
+Then open the flag editor and add one multivariate option:
 
 | Option String Value | % Allocation |
 |---------------------|-------------|
 | `test`              | **10%**     |
 
-4. The control value (`control`) receives the remaining **90%** automatically
-5. Click **Update Feature**
+The control value (`control`) receives the remaining **90%** automatically. Click **Update Feature**.
 
-Your flag should now look like:
+Your flag's default configuration should now look like:
 
 ```
-carousel_ab_test
-  ├── control   90%   (default value)
-  └── test      10%   (multivariate option)
+carousel_ab_test  (default value = "control")
+  └── test   10%   (multivariate option)
 ```
 
-### 1.4 (Optional) Configure Segments for Identity Overrides
+> **Important:** The 90/10 split above is the flag's global multivariate distribution. In this
+> POC the split is applied *only within* the `carousel_experiment` segment (see Step 1.3).
+> Users outside that segment always receive the flag's plain default value (`control`).
 
-For the identity override mechanism (Phase 2) to reliably lock a `userId`
-identity to the same bucket as its `deviceId`, create a segment:
+---
+
+### 1.3 Create the `carousel_experiment` Segment
+
+This segment acts as the experiment gate. Only identities carrying
+`Carousel_Cohort = true` as a trait will enter the A/B split.
 
 1. Go to **Segments → Create Segment**
-2. Name it `override_test_bucket`
-3. Rule: **Trait** `bucket_override` **equals** `test`
+2. Name: `carousel_experiment`
+3. Add rule: **Trait** `Carousel_Cohort` **equals** `true`
 4. Save the segment
 
-Then on the `carousel_ab_test` flag:
+---
 
-1. Click **+ Add Segment Override**
-2. Select `override_test_bucket`
-3. Set the value to `test` and enable it
+### 1.4 Create the Bucket-Override Segments
 
-Repeat for `override_control_bucket` → value `control`.
+These segments allow a `userId` identity to be pinned to the same variant
+as its corresponding `deviceId` identity (see Phase 2). They sit at a higher
+priority than the experiment segment so they always win.
 
-This guarantees that even if Flagsmith's hashing assigns a different bucket
-to the `userId` identity, the `bucket_override` trait forces the correct value.
+Create two segments:
 
-### 1.5 Copy Your API Key
+| Segment name              | Rule                                   |
+|---------------------------|----------------------------------------|
+| `override_test_bucket`    | `bucket_override` **equals** `test`    |
+| `override_control_bucket` | `bucket_override` **equals** `control` |
+
+---
+
+### 1.5 Add Segment Overrides to the Flag
+
+Open the `carousel_ab_test` flag and add three segment overrides **in this exact priority order**
+(drag to reorder; lower number = higher priority):
+
+| Priority | Segment                   | Value / Split               | Notes |
+|----------|---------------------------|-----------------------------|-------|
+| 1        | `override_test_bucket`    | `test` (100%)               | Pins identity to test variant |
+| 2        | `override_control_bucket` | `control` (100%)            | Pins identity to control variant |
+| 3        | `carousel_experiment`     | `control` 90% / `test` 10%  | The actual A/B split |
+
+The priority ordering is critical. When a user has `bucket_override = test`, the override
+segment fires before `carousel_experiment` is evaluated, locking them into the correct bucket
+regardless of how Flagsmith's hashing would otherwise assign their `userId` identity.
+
+---
+
+### 1.6 Copy Your API Key
 
 1. Go to **Settings → Keys** in your environment
 2. Copy the **Client-side Environment Key** (starts with `ser.`)
@@ -95,10 +119,11 @@ flagsmith.api.key=ser.YOUR_ACTUAL_KEY_HERE
 Or pass it at runtime:
 
 ```bash
-java -Dflagsmith.api.key=ser.YOUR_KEY -jar target/flagsmith-poc-1.0-SNAPSHOT-jar-with-dependencies.jar
+java -Dflagsmith.api.key=ser.YOUR_KEY \
+     -jar target/flagsmith-poc-1.0-SNAPSHOT-jar-with-dependencies.jar
 ```
 
-Or set an environment variable:
+Or via environment variable:
 
 ```bash
 export FLAGSMITH_API_KEY=ser.YOUR_KEY
@@ -122,35 +147,52 @@ java -jar target/flagsmith-poc-1.0-SNAPSHOT-jar-with-dependencies.jar
 
 ### Phase 1 — All 50 users evaluated by `deviceId`
 
-Each user is sent to Flagsmith as an **identity** keyed by their `deviceId`.
-Flagsmith uses a consistent hashing algorithm (MurmurHash) on the identity key
-to allocate users to variants. Because the `deviceId` is deterministic (derived
-from the user's name via UUID.nameUUIDFromBytes), results are **repeatable** across
-runs.
+Each user is sent to Flagsmith as an identity keyed by their `deviceId`, carrying the
+`Carousel_Cohort = true` trait. Flagsmith evaluates the `carousel_ab_test` flag:
 
-Expected output:
+1. Is `bucket_override` set? → check override segments (priority 1 & 2). No on first run.
+2. Does `Carousel_Cohort = true`? → yes, so `carousel_experiment` segment matches.
+3. Apply the 90/10 multivariate split within that segment.
+
+Because `deviceId` values are derived deterministically (via `UUID.nameUUIDFromBytes`),
+results are **stable across runs** — the same user always lands in the same bucket.
+
+To exclude a user from the experiment entirely, set `inCarouselCohort = false` in
+`UserFactory`. That identity will skip all three segment overrides and receive the
+flag's plain default value (`control`).
+
+Expected Phase 1 output:
 ```
-[Alice_1           ] deviceId=device-<uuid>  → ⬜ control
-[Bob_2             ] deviceId=device-<uuid>  → ⬜ control
-[Carol_3           ] deviceId=device-<uuid>  → 🔵 test
+[Alice_1           ] [cohort]   deviceId=device-<uuid>  → ⬜ control
+[Bob_2             ] [cohort]   deviceId=device-<uuid>  → ⬜ control
+[Carol_3           ] [cohort]   deviceId=device-<uuid>  → 🔵 test
 ...
 Totals → control: ~45 | test: ~5
 ```
 
-### Phase 2 — userId identity overrides for 20 identified users
+### Phase 2 — `userId` identity override for 20 identified users
 
-For each of the 20 users who have a `userId`:
+For each of the 20 users who have been assigned a `userId`:
 
-1. Their `deviceId` variant is read from Phase 1
-2. The `userId` identity is registered in Flagsmith with a `bucket_override`
-   trait set to that variant
-3. The `carousel_ab_test` flag is evaluated for the `userId` identity
-4. The POC checks whether both identities landed in the same bucket
+1. The `deviceId` variant (from Phase 1) is read — this is their "true" bucket.
+2. The `userId` identity is registered in Flagsmith with:
+   - `Carousel_Cohort = true` (keeps them in the experiment segment)
+   - `bucket_override = <control|test>` (the value from step 1)
+3. Because `override_test_bucket` / `override_control_bucket` sit at priority 1 & 2, the
+   `bucket_override` trait fires before the `carousel_experiment` split, returning the
+   same variant the `deviceId` received.
+4. The POC checks that both identities landed in the same bucket and reports the result.
 
+Expected Phase 2 output:
 ```
 [Alice_1           ]
   deviceId : device-<uuid>  → ⬜ control
   userId   : user-<uuid>    → ⬜ control
+  Bucket preserved? ✅ YES
+
+[Carol_3           ]
+  deviceId : device-<uuid>  → 🔵 test
+  userId   : user-<uuid>    → 🔵 test
   Bucket preserved? ✅ YES
 ```
 
@@ -159,17 +201,58 @@ For each of the 20 users who have a `userId`:
 ## Architecture
 
 ```
-FlagsmithPoc.java          ← entry point, orchestrates phases
+FlagsmithPoc.java           ← entry point, orchestrates phases
   |── ConfigService.java   ← Manages config
-  ├── UserFactory.java      ← generates 50 deterministic users
-  ├── FlagsmithService.java ← wraps the Flagsmith Java SDK
-  │     ├── getVariantForDevice()       Phase 1
-  │     ├── getVariantForIdentifiedUser() Phase 2 (read)
-  │     └── applyUserIdOverride()       Phase 2 (write + read)
-  ├── FlagVariant.java      ← enum: CONTROL | TEST | DISABLED
-  └── ResultSummary.java    ← collects & prints the final report
+  ├── UserFactory.java       ← generates 50 deterministic users (all in cohort by default)
+  ├── FlagsmithService.java  ← wraps the Flagsmith Java SDK
+  │     ├── getVariantForDevice()          Phase 1
+  │     ├── getVariantForIdentifiedUser()  Phase 2 (read)
+  │     └── applyUserIdOverride()          Phase 2 (write + read)
+  ├── User.java              ← model: name, deviceId, userId?, inCarouselCohort
+  ├── FlagVariant.java       ← enum: CONTROL | TEST | DISABLED
+  └── ResultSummary.java     ← collects & prints the final report
   
-FlagsmithDeleteIdentities.java  ← Clean up script to delete all identities.
+FlagsmithDeleteIdentities.java  ← Clean up script to delete all identities.  
+```
+
+### Trait reference
+
+| Trait key         | Type    | Set by                      | Purpose |
+|-------------------|---------|-----------------------------|---------|
+| `Carousel_Cohort` | boolean | All SDK calls               | Segment membership — gates entry into the experiment |
+| `bucket_override` | string  | `applyUserIdOverride()` only | Pins a `userId` identity to the same variant as its `deviceId` |
+| `device_id`       | string  | All SDK calls               | Stored for auditing / debugging in the Flagsmith dashboard |
+| `user_id`         | string  | Phase 2 calls               | Stored for auditing / debugging |
+| `name`            | string  | All SDK calls               | Human-readable label in the dashboard |
+
+---
+
+## Segment Override Priority — Visual Summary
+
+```
+Incoming identity
+        │
+        ▼
+┌─────────────────────────────────────────────┐
+│  Priority 1: override_test_bucket           │
+│  bucket_override = "test"  →  return "test" │──► 🔵 test
+└─────────────────────────────────────────────┘
+        │ no match
+        ▼
+┌──────────────────────────────────────────────────┐
+│  Priority 2: override_control_bucket             │
+│  bucket_override = "control" →  return "control" │──► ⬜ control
+└──────────────────────────────────────────────────┘
+        │ no match
+        ▼
+┌──────────────────────────────────────────────────┐
+│  Priority 3: carousel_experiment                 │
+│  Carousel_Cohort = true  →  90% / 10% split      │──► ⬜ control (90%)
+│                                                  │──► 🔵 test    (10%)
+└──────────────────────────────────────────────────┘
+        │ no match  (Carousel_Cohort = false or absent)
+        ▼
+   Flag default value: "control"                    ──► ⬜ control (outside experiment)
 ```
 
 ---
@@ -177,52 +260,66 @@ FlagsmithDeleteIdentities.java  ← Clean up script to delete all identities.
 ## Identity Override — Technical Deep Dive
 
 Flagsmith uses **consistent hashing** (MurmurHash on the identity key + flag ID)
-to assign each identity to a multivariate bucket.  Two different identity keys
-(e.g. `device-abc` and `user-xyz`) will almost certainly hash to different buckets.
+to assign each identity to a multivariate bucket. Two different identity keys
+(e.g. `device-abc` and `user-xyz`) will almost certainly hash to different buckets
+even if they represent the same person.
 
-To preserve the bucket across identity transitions:
+This POC implements **Option A** below. Options B and C are noted for completeness.
 
-### Option A — Traits + Segment Rules (implemented in this POC)
+### Option A — Traits + Segment Rules (implemented, works on all tiers)
 
-Store the device's bucket as a trait on the userId identity:
+Store the device bucket as a trait on the `userId` identity:
 ```
 bucket_override = "control"   # or "test"
 ```
-Then create a **segment override** in Flagsmith that matches on this trait
-and forces the correct flag value.  This works on **all tiers**.
+A higher-priority segment override matches on this trait and forces the correct
+value before Flagsmith's multivariate hashing is applied.
 
-### Option B — Management API (hard override, paid plans)
+**Limitation:** requires two SDK calls per identified user (one to read the
+`deviceId` variant, one to register the `userId` with the override trait).
 
-Use the Flagsmith REST Management API to pin an identity to a specific variant:
+### Option B — Management API (hard override, paid plans only)
+
+Use the Flagsmith REST Management API to pin an identity to a specific value,
+bypassing hashing entirely:
 
 ```http
-POST /api/v1/environments/{env_key}/identities/{identity}/overrides/
+POST /api/v1/environments/{env_key}/identities/
+Content-Type: application/json
+
 {
-  "feature": "carousel_ab_test",
-  "feature_state_value": "test",
-  "enabled": true
+  "identifier": "user-<uuid>",
+  "feature_states": [
+    {
+      "feature": { "name": "carousel_ab_test" },
+      "feature_state_value": "test",
+      "enabled": true
+    }
+  ]
 }
 ```
 
-This creates a **hard identity-level override** that ignores hashing entirely.
-See [Flagsmith docs](https://docs.flagsmith.com/clients/rest#identity-overrides).
+See [Flagsmith docs — identity overrides](https://docs.flagsmith.com/clients/rest#identity-overrides).
 
-### Option C — Unified identity (best practice for new projects)
+### Option C — Unified identity key (best practice for greenfield projects)
 
-If possible, always use `userId` as the primary identity key and pass
-`deviceId` as a trait.  This avoids the mismatch problem entirely.
+If possible, always use `userId` as the primary identity key from the start and
+pass `deviceId` as a trait. This eliminates the bucket mismatch problem entirely
+because there is only ever one identity key per person.
 
 ---
 
 ## Troubleshooting
 
-| Symptom | Cause | Fix |
-|---------|-------|-----|
+| Symptom | Likely cause | Fix |
+|---------|-------------|-----|
 | All users get `disabled` | Flag is OFF in Flagsmith | Enable the flag in the dashboard |
-| All users get `control` | Multivariate option not configured | Add the `test` option with 10% allocation |
-| `bucket_override` trait not taking effect | Segment override not configured | Follow Step 1.4 above |
-| `FlagsmithClientError` | Wrong API key | Check `config.properties` |
-| Everyone in `test` bucket | Allocation percentages inverted | Set `test` = 10%, `control` = 90% |
+| All users get `control` with no split | `carousel_experiment` segment override missing | Add the segment override with 90/10 multivariate split (Step 1.5) |
+| All users get `control` even with override | Override segments have lower priority than `carousel_experiment` | Drag `override_*` segments above `carousel_experiment` in the overrides list |
+| `bucket_override` trait not taking effect | Override segments not created | Follow Step 1.4 |
+| Users outside cohort land in `test` | `Carousel_Cohort` trait not being sent | Verify `setInCarouselCohort(true/false)` in `UserFactory` and check `FlagsmithService` passes the trait |
+| `FlagsmithClientError` at startup | Wrong or missing API key | Set `flagsmith.api.key` in `config.properties` |
+| Phase 2 bucket mismatch (`⚠️ NO`) | Override segment priority wrong, or `Carousel_Cohort` not set on `userId` identity | Check segment priority order; ensure `applyUserIdOverride()` passes the cohort trait |
 
 ---
 
@@ -237,13 +334,13 @@ flagsmith-poc/
         ├── java/com/poc/flagsmith/
         │   ├── ConfigService.java                 # Handles Flagsmith config
         │   ├── FlagsmithDeleteIdentities.java     # Clean up script
-        │   ├── FlagsmithPoc.java                  # main()
-        │   ├── FlagsmithService.java              # SDK wrapper
-        │   ├── User.java                          # user model
-        │   ├── UserFactory.java                   # generates 50 users
-        │   ├── FlagVariant.java                   # CONTROL / TEST / DISABLED
-        │   └── ResultSummary.java                 # report formatting
+        │   ├── FlagsmithPoc.java                  # main() — orchestrates Phase 1 & Phase 2
+        │   ├── FlagsmithService.java              # Flagsmith SDK wrapper
+        │   ├── User.java                          # model: name, deviceId, userId?, inCarouselCohort
+        │   ├── UserFactory.java                   # generates 50 deterministic users
+        │   ├── FlagVariant.java                   # enum: CONTROL | TEST | DISABLED
+        │   └── ResultSummary.java                 # collects results and prints final report
         └── resources/
-            ├── config.properties                  # ← put your API key here
-            └── logback.xml
+            ├── config.properties                  # ← put your Flagsmith API key here
+            └── logback.xml                        # logs to stderr; report goes to stdout
 ```
