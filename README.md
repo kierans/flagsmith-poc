@@ -119,8 +119,7 @@ flagsmith.api.key=ser.YOUR_ACTUAL_KEY_HERE
 Or pass it at runtime:
 
 ```bash
-java -Dflagsmith.api.key=ser.YOUR_KEY \
-     -jar target/flagsmith-poc-1.0-SNAPSHOT-jar-with-dependencies.jar
+mvn exec:java -Dexec.mainClass=com.poc.flagsmith.FlagsmithPoc -Dflagsmith.api.key=ser.YOUR_KEY
 ```
 
 Or via environment variable:
@@ -134,11 +133,26 @@ mvn exec:java -Dexec.mainClass=com.poc.flagsmith.FlagsmithPoc
 
 ## Step 3 — Build & Run
 
+(See class documentation about passing System Properties for configuration)
+
 ```bash
 # From the project root
-mvn clean package -q
+mvn exec:java -Dexec.mainClass=com.poc.flagsmith.FlagsmithPoc
+```
 
-java -jar target/flagsmith-poc-1.0-SNAPSHOT-jar-with-dependencies.jar
+---
+
+## Step 4 - Clean identities (optional)
+
+Running the script to clean the identities requires the use of `flagsmith.admin.key` and `flagsmith.environment.id`
+system properties.
+
+These properties can be passed to the `FlagsmithDeleteIdentities` class the same way as properties are passed for 
+running `FlagsmithPoc`. 
+
+```bash
+# From the project root
+mvn exec:java -Dexec.mainClass=com.poc.flagsmith.FlagsmithDeleteIdentities
 ```
 
 ---

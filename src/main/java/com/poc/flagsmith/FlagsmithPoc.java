@@ -7,7 +7,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Entry point for the Flagsmith A/B testing POC.
- *
+ * <br>
  * What this does:
  * ──────────────
  *  Phase 1  Evaluate the carousel_ab_test multivariate flag for all 50 users
@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
  *  Phase 2  Take the 20 users who have a userId, apply an identity override so
  *           that their userId identity is bucketed into the SAME variant as their
  *           deviceId identity.  Then verify that the variant is consistent.
- *
+ * <br>
  * Configuration:
  *   src/main/resources/config.properties → set flagsmith.api.key
  *   OR pass -Dflagsmith.api.key=<key> on the command line.

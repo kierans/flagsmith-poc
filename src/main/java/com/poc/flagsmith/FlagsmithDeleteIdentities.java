@@ -7,6 +7,15 @@ import java.net.http.HttpResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+/**
+ * "Script" to delete identifies from a Flagsmith environment.
+ * <br>
+ * Useful to clean up an environment after running a test.
+ * <br>
+ * Configuration:
+ *   src/main/resources/config.properties → set flagsmith.admin.key and flagsmith.environment.id
+ *   OR pass -Dflagsmith.admin.key=<key> -Dflagsmith.environment.id=<ID> on the command line.
+ */
 public class FlagsmithDeleteIdentities {
     private static final String BASE_URL = "https://api.flagsmith.com/api/v1";
     private static final int PAGE_SIZE = 100;
