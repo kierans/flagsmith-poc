@@ -176,7 +176,7 @@ public class FlagsmithService {
         return FlagVariant.fromValue(strValue);
     }
 
-    public FlagsmithClient getClient() {
-        return client;
+    public void close() {
+        client.close();
     }
 }

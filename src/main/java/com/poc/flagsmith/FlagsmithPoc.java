@@ -95,6 +95,6 @@ public class FlagsmithPoc {
         // ====================================================================
         summary.printReport();
 
-        service.getClient().close();
+        service.close();
     }
 }
