@@ -124,4 +124,4 @@ fabric.properties
 .idea/caches/build_file_checksums.ser
 
 .idea/
-src/main/resources/config.properties
+src/main/resources/*.properties
