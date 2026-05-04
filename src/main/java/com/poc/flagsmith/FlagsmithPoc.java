@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
  * ──────────────
  *  Phase 1  Evaluate the carousel_ab_test multivariate flag for all 50 users
  *           using their deviceId as the Flagsmith identity key.
- *           Users carry Carousel_Cohort=true, placing them in the
+ *           Users carry member_carousel_ab_test_cohort=true, placing them in the
  *           Carousel_Experiment segment.  The 90/10 split is applied only
  *           within that segment — users outside it get the default value.
  *
@@ -79,7 +79,7 @@ public class FlagsmithPoc {
             System.out.printf("  [%-18s]%n", user.getName());
             System.out.printf("    deviceId : %s  → %s%n", user.getDeviceId(), deviceVariant);
 
-            // Apply override: register the userId identity with bucket_override trait
+            // Apply override: register the userId identity with carousel_ab_test_cohort_override trait
             FlagVariant userVariant = service.applyUserIdOverride(user);
             System.out.printf("    userId   : %s  → %s%n", user.getUserId().orElse("N/A"), userVariant);
 

@@ -35,9 +35,9 @@ public class FlagsmithService {
     private static final String TRAIT_USER_ID = "user_id";
     private static final String TRAIT_NAME = "name";
     // Segment membership trait — set to true to place an identity in the
-    // Carousel_Experiment segment (which carries the 90/10 multivariate split).
+    // carousel_ab_test segment (which carries the 90/10 multivariate split).
     // Set to false (or omit) to exclude the identity from the experiment entirely.
-    public static final String TRAIT_CAROUSEL_COHORT = "Carousel_Cohort";
+    public static final String TRAIT_CAROUSEL_COHORT = "member_carousel_ab_test_cohort";
 
     private final FlagsmithClient client;
 
@@ -63,8 +63,8 @@ public class FlagsmithService {
             Map<String, Object> traits = new HashMap<>();
             traits.put(TRAIT_DEVICE_ID,      user.getDeviceId());
             traits.put(TRAIT_NAME,            user.getName());
-            // Carousel_Cohort controls segment membership in Flagsmith.
-            // Only identities with Carousel_Cohort=true enter the experiment.
+            // member_carousel_ab_test_cohort controls segment membership in Flagsmith.
+            // Only identities with member_carousel_ab_test_cohort=true enter the experiment.
             traits.put(TRAIT_CAROUSEL_COHORT, user.isInCarouselCohort());
 
             Flags flags = client.getIdentityFlags(user.getDeviceId(), traits);
@@ -132,7 +132,7 @@ public class FlagsmithService {
         log.info("  [override] Device '{}' is in variant '{}'", user.getDeviceId(), deviceVariant);
 
         // Step 2 – register the userId identity with matching traits
-        //          The "bucket_override" trait signals which variant to use
+        //          The "carousel_ab_test_cohort_override" trait signals which variant to use
         //          if custom rules / segments are configured in Flagsmith.
         try {
             Map<String, Object> traits = new HashMap<>();
@@ -141,9 +141,9 @@ public class FlagsmithService {
             traits.put(TRAIT_NAME,           user.getName());
             // Preserve cohort membership on the userId identity
             traits.put(TRAIT_CAROUSEL_COHORT, user.isInCarouselCohort());
-            // bucket_override is matched by the higher-priority segment overrides
-            // (override_test_bucket / override_control_bucket) to pin the variant
-            traits.put("bucket_override",   deviceVariant.getValue());
+            // carousel_ab_test_cohort_override is matched by the higher-priority segment overrides
+            // (carousel_ab_test_cohort_test_override / carousel_ab_test_cohort_control_override) to pin the variant
+            traits.put("carousel_ab_test_cohort_override",   deviceVariant.getValue());
 
             Flags flags = client.getIdentityFlags(user.getUserId().get(), traits);
             FlagVariant userVariant = extractVariant(flags);

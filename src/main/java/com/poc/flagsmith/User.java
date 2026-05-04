@@ -12,7 +12,7 @@ public class User {
     private final String name;
     private final String deviceId;
     private String userId;          // nullable — assigned to 20 of the 50 users
-    private boolean inCarouselCohort; // whether this identity carries Carousel_Cohort=true
+    private boolean inCarouselCohort; // whether this identity carries member_carousel_ab_test_cohort=true
 
     public User(String name, String deviceId) {
         this.name = name;
