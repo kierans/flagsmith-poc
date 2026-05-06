@@ -31,6 +31,19 @@ public class ConfigService {
         }
     }
 
+    public String resolveApiUrl() {
+        return
+            resolveFromSysProp("flagsmith.api.url")
+                .or(() -> resolveFromConfigProperties("flagsmith.api.url"))
+                .or(() -> resolveFromEnv("FLAGSMITH_API_URL"))
+                .orElseGet(() -> {
+                    // Fall back — demo key for Flagsmith's hosted public sandbox
+                    log.warn("No API URL configured — using public api.");
+
+                    return "https://api.flagsmith.com";
+                });
+    }
+
     public String resolveApiKey() {
         return
             resolveFromSysProp("flagsmith.api.key")
