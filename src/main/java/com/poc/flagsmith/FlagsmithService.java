@@ -41,8 +41,9 @@ public class FlagsmithService {
 
     private final FlagsmithClient client;
 
-    public FlagsmithService(String environmentApiKey) {
+    public FlagsmithService(String apiUrl, String environmentApiKey) {
         this.client = FlagsmithClient.newBuilder()
+            .withApiUrl(apiUrl)
             .setApiKey(environmentApiKey)
             .build();
 

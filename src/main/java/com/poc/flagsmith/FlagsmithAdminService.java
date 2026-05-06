@@ -14,15 +14,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * HTTP client for the Flagsmith Management (Admin) API.
  */
 public class FlagsmithAdminService {
-    private static final String BASE_URL = "https://api.flagsmith.com/api/v1";
     private static final int PAGE_SIZE = 10;
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private final String apiUrl;
     private final String environmentId;
     private final String authorisationToken;
 
-    public FlagsmithAdminService(String environmentId, String authorisationToken) {
+    public FlagsmithAdminService(String apiUrl, String environmentId, String authorisationToken) {
+        this.apiUrl = apiUrl;
         this.environmentId = environmentId;
         this.authorisationToken = authorisationToken;
     }
@@ -35,7 +37,7 @@ public class FlagsmithAdminService {
      */
     public JsonNode fetchEdgeIdentities(String lastEvaluatedKey) throws Exception {
         StringBuilder url = new StringBuilder()
-            .append(BASE_URL)
+            .append(apiUrl)
             .append("/environments/")
             .append(environmentId)
             .append("/edge-identities/?page_size=")
@@ -70,7 +72,9 @@ public class FlagsmithAdminService {
     public int deleteEdgeIdentity(String identityUuid) throws Exception {
         String url = String.format(
             "%s/environments/%s/edge-identities/%s/",
-            BASE_URL, environmentId, identityUuid
+            apiUrl,
+            environmentId,
+            identityUuid
         );
 
         HttpRequest request = HttpRequest.newBuilder()

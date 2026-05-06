@@ -23,6 +23,7 @@ public class FlagsmithDeleteIdentities {
 
         ConfigService config = new ConfigService();
         FlagsmithAdminService adminService = new FlagsmithAdminService(
+            config.resolveApiUrl(),
             config.resolveEnvironmentId(),
             config.resolveAdminKey()
         );

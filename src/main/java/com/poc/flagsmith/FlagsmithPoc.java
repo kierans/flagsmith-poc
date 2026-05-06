@@ -36,11 +36,12 @@ public class FlagsmithPoc {
         System.out.println();
 
         ConfigService configService = new ConfigService();
+        String baseUrl = configService.resolveApiUrl();
         String apiKey = configService.resolveApiKey();
 
         log.info("Starting POC with Flagsmith API key: {}...", apiKey.substring(0, Math.min(8, apiKey.length())));
 
-        FlagsmithService service = new FlagsmithService(apiKey);
+        FlagsmithService service = new FlagsmithService(baseUrl, apiKey);
         List<User> users = UserFactory.createUsers();
         ResultSummary summary = new ResultSummary();
 
