@@ -40,7 +40,7 @@ public class ConfigService {
                     // Fall back — demo key for Flagsmith's hosted public sandbox
                     log.warn("No API URL configured — using public api.");
 
-                    return "https://api.flagsmith.com";
+                    return "https://api.flagsmith.com/api/v1";
                 });
     }
 
