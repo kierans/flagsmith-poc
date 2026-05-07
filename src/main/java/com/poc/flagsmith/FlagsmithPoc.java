@@ -28,7 +28,7 @@ public class FlagsmithPoc {
 
     private static final Logger log = LoggerFactory.getLogger(FlagsmithPoc.class);
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
         System.out.println();
         System.out.println("╔══════════════════════════════════════════════════════════════╗");
         System.out.println("║         FLAGSMITH A/B TESTING POC  —  CAROUSEL FLAG         ║");
@@ -36,7 +36,7 @@ public class FlagsmithPoc {
         System.out.println();
 
         ConfigService configService = new ConfigService();
-        String baseUrl = configService.resolveApiUrl();
+        String baseUrl = configService.resolveEdgeApiUrl();
         String apiKey = configService.resolveApiKey();
 
         log.info("Starting POC with Flagsmith API key: {}...", apiKey.substring(0, Math.min(8, apiKey.length())));
