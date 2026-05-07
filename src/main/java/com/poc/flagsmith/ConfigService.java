@@ -31,6 +31,19 @@ public class ConfigService {
         }
     }
 
+    public String resolveEdgeApiUrl() {
+        return
+            resolveFromSysProp("flagsmith.api.edge.url")
+                .or(() -> resolveFromConfigProperties("flagsmith.api.edge.url"))
+                .or(() -> resolveFromEnv("FLAGSMITH_EDGE_API_URL"))
+                .orElseGet(() -> {
+                    // Fall back — demo key for Flagsmith's hosted public sandbox
+                    log.warn("No API URL configured — using public api.");
+
+                    return "https://edge.api.flagsmith.com/api/v1/";
+                });
+    }
+
     public String resolveApiUrl() {
         return
             resolveFromSysProp("flagsmith.api.url")
